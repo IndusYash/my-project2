@@ -1,18 +1,42 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import CameraCapture from './components/CameraCapture'
 import IssueCategories from './components/IssueCategories'
 import VoiceInput from './components/VoiceInput'
 import AIAnalysis from './components/AIAnalysis'
 import MapView from './components/MapView'
-import LoadingScreen from './components/LoadingScreen'  // Add this import
+import LoadingScreen from './components/LoadingScreen'
+import CommunityPage from './components/CommunityPage'  // Community import
+import GeminiChatbot from './components/GeminiChatbot' // Chatbot import
 import { analyzeImageWithGemini, testGeminiConnection } from './services/gemini'
 import { DetectedIssue, IssueReport } from './types'
-import { Loader2, CheckCircle, AlertCircle, Camera, Send, RefreshCw, MapPin, Clock, User } from 'lucide-react'
+import { 
+  Loader2, 
+  CheckCircle, 
+  AlertCircle, 
+  Camera, 
+  Send, 
+  RefreshCw, 
+  MapPin, 
+  Clock, 
+  User,
+  MessageCircle,
+  X
+} from 'lucide-react'
+
+// Get Supabase configuration from environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function App() {
   // Add loading state
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  
+  // Chatbot state
+  const [showChatbot, setShowChatbot] = useState(false)
+  
+  // Community state
+  const [showCommunity, setShowCommunity] = useState(false)
   
   // Main app state
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
@@ -209,6 +233,28 @@ function App() {
     setShowMap(false)
   }
 
+  // Community handlers
+  const handleCommunityClick = () => {
+    console.log('🏛️ Opening community page')
+    setShowCommunity(true)
+  }
+
+  const closeCommunity = () => {
+    console.log('🏛️ Closing community page')
+    setShowCommunity(false)
+  }
+
+  // Chatbot handlers
+  const handleChatbotClick = () => {
+    console.log('💬 Opening AI chatbot')
+    setShowChatbot(true)
+  }
+
+  const closeChatbot = () => {
+    console.log('💬 Closing AI chatbot')
+    setShowChatbot(false)
+  }
+
   // Show loading screen while initializing
   if (isInitialLoading) {
     return <LoadingScreen />
@@ -218,7 +264,10 @@ function App() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-        <Navbar onMapClick={handleMapClick} />
+        <Navbar 
+          onMapClick={handleMapClick} 
+          onCommunityClick={handleCommunityClick} 
+        />
         <main className="container mx-auto px-4 py-12">
           <div className="max-w-md mx-auto bg-white rounded-2xl shadow-2xl p-8 text-center animate-fade-in border border-gray-100">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce-slow">
@@ -253,13 +302,22 @@ function App() {
               </div>
             </div>
             
-            <button
-              onClick={() => setSubmitted(false)}
-              className="flex items-center gap-3 px-8 py-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 mx-auto"
-            >
-              <RefreshCw className="w-5 h-5" />
-              Report Another Issue
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => setSubmitted(false)}
+                className="flex items-center gap-3 px-8 py-4 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 mx-auto"
+              >
+                <RefreshCw className="w-5 h-5" />
+                Report Another Issue
+              </button>
+              
+              <button
+                onClick={handleCommunityClick}
+                className="flex items-center gap-3 px-8 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium mx-auto"
+              >
+                👥 View Community Reviews
+              </button>
+            </div>
           </div>
         </main>
       </div>
@@ -268,10 +326,57 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      <Navbar onMapClick={handleMapClick} />
+      <Navbar 
+        onMapClick={handleMapClick} 
+        onCommunityClick={handleCommunityClick} 
+      />
       
       {/* Map Modal */}
       {showMap && <MapView onClose={closeMap} />}
+      
+      {/* Community Modal */}
+      {showCommunity && <CommunityPage onClose={closeCommunity} />}
+      
+      {/* Chatbot Modal */}
+      {showChatbot && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <MessageCircle className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">AI Assistant</h2>
+                  <p className="text-sm text-gray-500">Powered by Gemini AI</p>
+                </div>
+              </div>
+              <button
+                onClick={closeChatbot}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6">
+              <GeminiChatbot
+                supabaseUrl={SUPABASE_URL}
+                supabaseKey={SUPABASE_KEY}
+                className="h-[500px]"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Floating Chatbot Button */}
+      <button
+        onClick={handleChatbotClick}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-200 flex items-center justify-center z-40"
+        title="Open AI Assistant"
+      >
+        <MessageCircle className="w-7 h-7" />
+      </button>
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-8">
