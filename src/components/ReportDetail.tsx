@@ -15,8 +15,22 @@ import {
   X
 } from 'lucide-react'
 import { ReportDetailProps } from '../types'
+import { useState, useEffect } from 'react'
 
 const ReportDetail = ({ report, onClose, onBack }: ReportDetailProps) => {
+  const [reportUser, setReportUser] = useState<{ name: string; email: string } | null>(null)
+
+  // Get user info from localStorage based on userId
+  useEffect(() => {
+    if (report.userId) {
+      const users = JSON.parse(localStorage.getItem('jharkhand-civic-users') || '[]')
+      const user = users.find((u: any) => u.id === report.userId)
+      if (user) {
+        setReportUser({ name: user.name, email: user.email })
+      }
+    }
+  }, [report.userId])
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'resolved': return 'bg-green-100 text-green-800 border-green-300'
@@ -127,12 +141,12 @@ const ReportDetail = ({ report, onClose, onBack }: ReportDetailProps) => {
                   <div className="flex items-start gap-3">
                     <User className="w-5 h-5 text-gray-500 mt-0.5" />
                     <div>
-                      <p className="font-medium text-gray-900">Signed In As</p>
+                      <p className="font-medium text-gray-900">Submitted By</p>
                       <p className="text-sm text-gray-600">
-                        {report.user?.name || "Anonymous"}
+                        {reportUser?.name || "Anonymous User"}
                       </p>
-                      {report.user?.email && (
-                        <p className="text-xs text-gray-500">{report.user.email}</p>
+                      {reportUser?.email && (
+                        <p className="text-xs text-gray-500">{reportUser.email}</p>
                       )}
                     </div>
                   </div>
@@ -206,31 +220,33 @@ const ReportDetail = ({ report, onClose, onBack }: ReportDetailProps) => {
             </div>
 
             {/* Progress Timeline */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Progress Timeline</h3>
-              <div className="space-y-4">
-                {report.updates.map((update, index) => (
-                  <div key={update.id} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                      {index < report.updates.length - 1 && (
-                        <div className="w-px h-12 bg-gray-300 mt-2"></div>
-                      )}
-                    </div>
-                    <div className="flex-1 pb-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-gray-900">{update.status}</span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(update.timestamp).toLocaleDateString()}
-                        </span>
+            {report.updates && report.updates.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Progress Timeline</h3>
+                <div className="space-y-4">
+                  {report.updates.map((update, index) => (
+                    <div key={update.id} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                        {index < report.updates.length - 1 && (
+                          <div className="w-px h-12 bg-gray-300 mt-2"></div>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-600">{update.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">Updated by: {update.updatedBy}</p>
+                      <div className="flex-1 pb-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-gray-900">{update.status}</span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(update.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{update.message}</p>
+                        <p className="text-xs text-gray-500 mt-1">Updated by: {update.updatedBy}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Rating & Feedback */}
             {report.citizenRating && (

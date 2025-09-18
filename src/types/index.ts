@@ -538,11 +538,14 @@ export interface DepartmentForm {
 // ===== UTILITY TYPE EXPORTS =====
 export type IssueStatus = Issue['status']
 export type IssuePriority = Issue['priority'] 
-export type IssueCategory = Issue['category']
 export type AdminRole = AdminUser['role']
 export type NotificationType = AdminNotification['type']
 export type BulkActionType = BulkOperation['action']
 
+// ===== CATEGORY TYPES =====
+// Use the Admin Issue category type for consistency
+export type IssueCategoryType = Issue['category']
+
 // ===== LEGACY COMPATIBILITY =====
-// Keep the old interface name for backward compatibility
-export interface issueCategory extends IssueCategory {}
+// Remove the duplicate interface - use type alias instead
+export type issueCategory = IssueCategory

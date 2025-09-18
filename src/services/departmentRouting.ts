@@ -1,3 +1,5 @@
+// src/services/departmentRouting.ts
+
 interface DepartmentRoutingRule {
   categoryPatterns: string[]
   departmentId: string
@@ -13,7 +15,7 @@ interface RoutingResult {
   alternativeDepartments?: string[]
 }
 
-// 🔥 Smart routing rules based on civic issue categories
+// Smart routing rules based on civic issue categories
 const ROUTING_RULES: DepartmentRoutingRule[] = [
   {
     categoryPatterns: ['pothole', 'road', 'street', 'pavement', 'asphalt'],
@@ -59,7 +61,7 @@ const ROUTING_RULES: DepartmentRoutingRule[] = [
   }
 ]
 
-// 🤖 AI-powered department routing service
+// AI-powered department routing service
 export class DepartmentRoutingService {
   
   // Main auto-assignment function
@@ -71,33 +73,39 @@ export class DepartmentRoutingService {
     location?: { address: string }
   }): Promise<RoutingResult> {
     
-    console.log('🤖 Auto-assigning department for issue:', issue.category)
+    console.log('Auto-assigning department for issue:', issue.category)
     
-    // Step 1: Direct category matching
-    const directMatch = this.findDirectCategoryMatch(issue.category)
-    if (directMatch) {
-      return {
-        departmentId: directMatch.departmentId,
-        confidence: directMatch.confidence,
-        reasoning: Direct category match: "${issue.category}" → Department,
-        alternativeDepartments: []
+    try {
+      // Step 1: Direct category matching
+      const directMatch = this.findDirectCategoryMatch(issue.category)
+      if (directMatch) {
+        return {
+          departmentId: directMatch.departmentId,
+          confidence: directMatch.confidence,
+          reasoning: `Direct category match: "${issue.category}" assigned to department`,
+          alternativeDepartments: []
+        }
       }
+      
+      // Step 2: Text analysis
+      const textAnalysis = await this.analyzeIssueText(issue)
+      if (textAnalysis.confidence > 0.7) {
+        return textAnalysis
+      }
+      
+      // Step 3: Location-based routing
+      const locationRouting = this.analyzeLocation(issue.location?.address || '')
+      if (locationRouting.confidence > 0.6) {
+        return locationRouting
+      }
+      
+      // Step 4: Default fallback
+      return this.getDefaultAssignment(issue.priority)
+      
+    } catch (error) {
+      console.error('Error in auto-assignment:', error)
+      return this.getDefaultAssignment(issue.priority)
     }
-    
-    // Step 2: AI-powered text analysis
-    const textAnalysis = await this.analyzeIssueText(issue)
-    if (textAnalysis.confidence > 0.7) {
-      return textAnalysis
-    }
-    
-    // Step 3: Location-based routing (if address contains specific areas)
-    const locationRouting = this.analyzeLocation(issue.location?.address || '')
-    if (locationRouting.confidence > 0.6) {
-      return locationRouting
-    }
-    
-    // Step 4: Default fallback based on priority
-    return this.getDefaultAssignment(issue.priority)
   }
   
   // Direct category matching
@@ -111,7 +119,7 @@ export class DepartmentRoutingService {
     ) || null
   }
   
-  // AI-powered text analysis
+  // Text analysis
   private static async analyzeIssueText(issue: {
     title: string
     description: string
@@ -119,9 +127,9 @@ export class DepartmentRoutingService {
     priority: string
   }): Promise<RoutingResult> {
     
-    const combinedText = ${issue.title} ${issue.description}.toLowerCase()
-    const scores: { [departmentId: string]: number } = {}
-    const matchedKeywords: { [departmentId: string]: string[] } = {}
+    const combinedText = `${issue.title} ${issue.description}`.toLowerCase()
+    const scores: Record<string, number> = {}
+    const matchedKeywords: Record<string, string[]> = {}
     
     // Analyze keywords for each department
     ROUTING_RULES.forEach(rule => {
@@ -137,15 +145,17 @@ export class DepartmentRoutingService {
       })
       
       // Check specific keywords
-      rule.keywords?.forEach(keyword => {
-        if (combinedText.includes(keyword)) {
-          score += 0.2
-          keywords.push(keyword)
-        }
-      })
+      if (rule.keywords) {
+        rule.keywords.forEach(keyword => {
+          if (combinedText.includes(keyword)) {
+            score += 0.2
+            keywords.push(keyword)
+          }
+        })
+      }
       
       // Priority boost
-      if (rule.priority?.includes(issue.priority)) {
+      if (rule.priority && rule.priority.includes(issue.priority)) {
         score += 0.1
       }
       
@@ -156,21 +166,29 @@ export class DepartmentRoutingService {
     })
     
     // Find best match
-    const bestDepartment = Object.entries(scores).reduce((a, b) => 
-      scores[a[0]] > scores[b[0]] ? a : b
-    )
-    
-    if (bestDepartment && scores[bestDepartment[0]] > 0.3) {
+    const entries = Object.entries(scores)
+    if (entries.length === 0) {
       return {
-        departmentId: bestDepartment[0],
-        confidence: Math.min(scores[bestDepartment[0]], 0.95),
-        reasoning: AI text analysis matched keywords: ${matchedKeywords[bestDepartment[0]].join(', ')},
-        alternativeDepartments: Object.keys(scores).filter(d => d !== bestDepartment[0])
+        departmentId: '1',
+        confidence: 0.3,
+        reasoning: 'No keyword matches found - defaulting to Roads & Infrastructure'
+      }
+    }
+    
+    const bestEntry = entries.reduce((a, b) => scores[a[0]] > scores[b[0]] ? a : b)
+    
+    if (bestEntry && scores[bestEntry[0]] > 0.3) {
+      const keywords = matchedKeywords[bestEntry[0]] || []
+      return {
+        departmentId: bestEntry[0],
+        confidence: Math.min(scores[bestEntry[0]], 0.95),
+        reasoning: `AI text analysis matched keywords: ${keywords.join(', ')}`,
+        alternativeDepartments: Object.keys(scores).filter(d => d !== bestEntry[0])
       }
     }
     
     return {
-      departmentId: '1', // Default to Roads & Infrastructure
+      departmentId: '1',
       confidence: 0.3,
       reasoning: 'Low confidence text analysis - defaulting to Roads & Infrastructure'
     }
@@ -193,7 +211,7 @@ export class DepartmentRoutingService {
         return {
           departmentId: pattern.departmentId,
           confidence: pattern.confidence,
-          reasoning: Location-based routing: "${address}" suggests specific department
+          reasoning: `Location-based routing: "${address}" suggests specific department`
         }
       }
     }
@@ -207,8 +225,8 @@ export class DepartmentRoutingService {
   
   // Default assignment based on priority
   private static getDefaultAssignment(priority: string): RoutingResult {
-    const priorityDefaults: { [key: string]: string } = {
-      'emergency': '4', // Water & Drainage (emergency flooding, etc.)
+    const priorityDefaults: Record<string, string> = {
+      'emergency': '4', // Water & Drainage
       'urgent': '1',    // Roads & Infrastructure
       'high': '3',      // Electrical & Utilities
       'medium': '2',    // Sanitation & Waste
@@ -220,21 +238,53 @@ export class DepartmentRoutingService {
     return {
       departmentId: defaultDept,
       confidence: 0.5,
-      reasoning: Default assignment based on priority: "${priority}",
+      reasoning: `Default assignment based on priority: "${priority}"`,
       alternativeDepartments: Object.values(priorityDefaults).filter(d => d !== defaultDept)
     }
   }
   
-  // Get department load balancing (if multiple departments can handle the issue)
+  // Get department load balancing
   static getLoadBalancedAssignment(
     possibleDepartments: string[], 
-    departmentWorkloads: { [id: string]: number }
+    departmentWorkloads: Record<string, number>
   ): string {
-    // Find department with lowest current workload
     return possibleDepartments.reduce((lightest, current) => {
       const lightestLoad = departmentWorkloads[lightest] || 0
       const currentLoad = departmentWorkloads[current] || 0
       return currentLoad < lightestLoad ? current : lightest
     })
   }
+
+  // Helper method to get department name by ID
+  static getDepartmentName(departmentId: string): string {
+    const departmentNames: Record<string, string> = {
+      '1': 'Roads & Infrastructure',
+      '2': 'Sanitation & Waste Management',
+      '3': 'Electrical & Utilities',
+      '4': 'Water & Drainage',
+      '5': 'Traffic Management',
+      '6': 'Parks & Recreation'
+    }
+    
+    return departmentNames[departmentId] || 'General Services'
+  }
+
+  // Get routing statistics
+  static getRoutingStats(): {
+    totalRules: number
+    departmentsCount: number
+    avgConfidence: number
+  } {
+    const confidences = ROUTING_RULES.map(rule => rule.confidence)
+    const avgConfidence = confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length
+    
+    return {
+      totalRules: ROUTING_RULES.length,
+      departmentsCount: new Set(ROUTING_RULES.map(rule => rule.departmentId)).size,
+      avgConfidence: Math.round(avgConfidence * 100) / 100
+    }
+  }
 }
+
+// Export the service and interfaces
+export type { DepartmentRoutingRule, RoutingResult }

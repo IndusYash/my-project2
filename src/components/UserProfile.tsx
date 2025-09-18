@@ -42,6 +42,7 @@ const UserProfile = ({ onClose }: ProfilePageProps) => {
         phone: '+91 98765 43210',
         avatar: undefined,
         joinedDate: '2024-01-15',
+        isVerified: true, // ✅ Added this required property
         totalReports: 12,
         resolvedReports: 8,
         pendingReports: 4,
@@ -123,7 +124,8 @@ const UserProfile = ({ onClose }: ProfilePageProps) => {
             }
           ],
           citizenRating: 5,
-          feedback: 'Excellent work! The road is much better now.'
+          feedback: 'Excellent work! The road is much better now.',
+          userId: 'user-123' // Added userId to match the reports
         },
         {
           id: 'JH-CIVIC-002',
@@ -160,7 +162,8 @@ const UserProfile = ({ onClose }: ProfilePageProps) => {
               message: 'Electrician team inspected the site. Replacement bulb ordered.',
               updatedBy: 'Electrical Dept'
             }
-          ]
+          ],
+          userId: 'user-123' // Added userId
         },
         {
           id: 'JH-CIVIC-003',
@@ -190,7 +193,8 @@ const UserProfile = ({ onClose }: ProfilePageProps) => {
               message: 'Municipal Corporation has acknowledged the report',
               updatedBy: 'Municipal Corp'
             }
-          ]
+          ],
+          userId: 'user-123' // Added userId
         }
       ]
       
@@ -280,7 +284,14 @@ const UserProfile = ({ onClose }: ProfilePageProps) => {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">{user.name}</h2>
                 <p className="text-gray-600">{user.email}</p>
-                <p className="text-sm text-gray-500">Member since {new Date(user.joinedDate).toLocaleDateString()}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-500">Member since {new Date(user.joinedDate).toLocaleDateString()}</p>
+                  {user.isVerified && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✓ Verified
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             
