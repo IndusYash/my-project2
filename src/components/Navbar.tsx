@@ -31,6 +31,11 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
 
   const handleProfileClick = () => {
     setIsMenuOpen(false)
+    // If not authenticated, show auth modal instead of blocking access
+    if (!isAuthenticated && onAuthClick) {
+      onAuthClick()
+      return
+    }
     if (onProfileClick) {
       onProfileClick()
     }
@@ -59,20 +64,13 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
               <Camera className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Jharkhand Civic Report</h1>
+              <h1 className="text-xl font-bold text-gray-900">Jharkhand CivicReport</h1>
               <p className="text-xs text-gray-500">A Govt. of Jharkhand Initiative</p>
             </div>
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-6">
-            {/* <a 
-              href="#report" 
-              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors px-3 py-2 rounded-md hover:bg-gray-100"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Report Issue</span>
-            </a> */}
             
             <button
               onClick={handleMapClick}
@@ -89,50 +87,43 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
               <Users className="w-4 h-4" />
               <span>Community</span>
             </button>
-            
-            {/* <a 
-              href="#reports" 
+
+            {/* Profile button - available for everyone */}
+            <button
+              onClick={handleProfileClick}
               className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors px-3 py-2 rounded-md hover:bg-gray-100"
+              title={isAuthenticated ? "View your profile" : "Sign in to access profile"}
             >
-              <FileText className="w-4 h-4" />
-              <span>My Reports</span>
-            </a> */}
+              <User className="w-4 h-4" />
+              <span>{isAuthenticated ? "My Profile" : "Profile"}</span>
+            </button>
 
             {/* Authentication Section */}
             {isAuthenticated ? (
-              <>
-                <button
-                  onClick={handleProfileClick}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors px-3 py-2 rounded-md hover:bg-gray-100"
-                >
-                  <User className="w-4 h-4" />
-                  <span>My Profile</span>
-                </button>
-                
-                <div className="flex items-center space-x-3 pl-3 border-l border-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                      {user?.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-gray-700 font-medium">{user?.name}</span>
+              <div className="flex items-center space-x-3 pl-3 border-l border-gray-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    {user?.name.charAt(0).toUpperCase()}
                   </div>
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-2 text-gray-500 hover:text-red-600 transition-colors px-2 py-1 rounded-md hover:bg-red-50"
-                    title="Sign Out"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
+                  <span className="text-gray-700 font-medium">{user?.name}</span>
                 </div>
-              </>
+                
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2 text-gray-500 hover:text-red-600 transition-colors px-2 py-1 rounded-md hover:bg-red-50"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
               <button
                 onClick={handleAuthClick}
                 className="flex items-center space-x-2 bg-blue-500 text-white hover:bg-blue-600 transition-colors px-4 py-2 rounded-lg font-medium"
+                title="Optional: Sign in to track your reports"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Sign In</span>
+                <span>Sign In (Optional)</span>
               </button>
             )}
           </div>
@@ -152,14 +143,6 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
         {isMenuOpen && (
           <div className="md:hidden border-t border-gray-200 py-4 animate-fade-in">
             <div className="flex flex-col space-y-2">
-              <a 
-                href="#report" 
-                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Camera className="w-4 h-4" />
-                <span>Report Issue</span>
-              </a>
               
               <button
                 onClick={handleMapClick}
@@ -176,33 +159,28 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
                 <Users className="w-4 h-4" />
                 <span>Community</span>
               </button>
-              
-              <a 
-                href="#reports" 
-                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors"
-                onClick={() => setIsMenuOpen(false)}
+
+              {/* Profile button - available for everyone in mobile */}
+              <button
+                onClick={handleProfileClick}
+                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors text-left w-full"
               >
-                <FileText className="w-4 h-4" />
-                <span>My Reports</span>
-              </a>
+                <User className="w-4 h-4" />
+                <span>{isAuthenticated ? "My Profile" : "Profile (Sign in required)"}</span>
+              </button>
 
               {/* Mobile Authentication Section */}
               {isAuthenticated ? (
                 <>
-                  <button
-                    onClick={handleProfileClick}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors text-left w-full"
-                  >
-                    <User className="w-4 h-4" />
-                    <span>My Profile</span>
-                  </button>
-                  
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <div className="flex items-center space-x-3 px-3 py-2">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
                         {user?.name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-gray-700 font-medium">{user?.name}</span>
+                      <div>
+                        <span className="text-gray-700 font-medium">{user?.name}</span>
+                        <p className="text-xs text-gray-500">Signed in</p>
+                      </div>
                     </div>
                     
                     <button
@@ -215,13 +193,22 @@ const Navbar = ({ onMapClick, onCommunityClick, onProfileClick, onAuthClick }: N
                   </div>
                 </>
               ) : (
-                <button
-                  onClick={handleAuthClick}
-                  className="flex items-center space-x-2 bg-blue-500 text-white hover:bg-blue-600 px-3 py-2 rounded-md transition-colors text-left w-full font-medium"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Sign In</span>
-                </button>
+                <>
+                  <div className="border-t border-gray-200 pt-2 mt-2">
+                    <button
+                      onClick={handleAuthClick}
+                      className="flex items-center space-x-2 bg-blue-500 text-white hover:bg-blue-600 px-3 py-2 rounded-md transition-colors text-left w-full font-medium"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Sign In (Optional)</span>
+                    </button>
+                    
+                    {/* Benefits message for mobile */}
+                    <div className="px-3 py-2 text-xs text-gray-500">
+                      💡 Sign in to track reports and get updates
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>

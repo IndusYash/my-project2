@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2, AlertCircle, ArrowLeft, Gift, Star, CheckCircle, Shield } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { SignupCredentials } from '../../types'
 
 interface SignupFormProps {
   onSwitchToLogin: () => void
   onClose: () => void
+  isOptional?: boolean // ✅ Add optional prop
 }
 
-const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
+const SignupForm = ({ onSwitchToLogin, onClose, isOptional = true }: SignupFormProps) => {
   const { signup, isLoading } = useAuth()
   const [formData, setFormData] = useState<SignupCredentials>({
     name: '',
@@ -56,13 +57,67 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
 
   return (
     <div className="w-full max-w-md mx-auto">
+      {/* ✅ Header with optional messaging */}
       <div className="text-center mb-8">
         <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
           <span className="text-white text-2xl font-bold">JH</span>
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
-        <p className="text-gray-600">Join Jharkhand CivicReport community</p>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          {isOptional ? 'Join the Community!' : 'Create Account'}
+        </h2>
+        <p className="text-gray-600">
+          {isOptional 
+            ? 'Unlock enhanced features and help improve Jharkhand'
+            : 'Join Jharkhand CivicReport community'
+          }
+        </p>
+        {isOptional && (
+          <p className="text-sm text-green-600 mt-2">
+            🎁 Optional • Get exclusive benefits for contributing citizens
+          </p>
+        )}
       </div>
+
+      {/* ✅ Skip option for optional auth */}
+      {isOptional && (
+        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl text-center">
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center gap-2 w-full text-gray-600 hover:text-gray-800 transition-colors py-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Continue without creating account</span>
+          </button>
+        </div>
+      )}
+
+      {/* ✅ Benefits Section for Optional Auth */}
+      {isOptional && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <Gift className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-medium text-green-900 mb-2">
+                🌟 What you'll get as a registered citizen:
+              </h3>
+              <ul className="space-y-1">
+                {[
+                  'Real-time SMS updates on your reports',
+                  'Personal dashboard to track all submissions',
+                  'Community badges for helping improve Jharkhand',
+                  'Priority support for urgent civic issues',
+                  'Direct feedback from government departments'
+                ].map((benefit, index) => (
+                  <li key={index} className="flex items-start gap-2 text-xs text-green-800">
+                    <CheckCircle className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
@@ -104,10 +159,13 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
               value={formData.email}
               onChange={handleChange}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="Enter your email"
+              placeholder="Enter your email for updates"
               required
             />
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            📧 We'll send you updates on your civic reports
+          </p>
         </div>
 
         <div>
@@ -126,6 +184,9 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
               placeholder="+91 12345 67890"
             />
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            📱 For SMS alerts when your reports are resolved
+          </p>
         </div>
 
         <div>
@@ -141,7 +202,7 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
               value={formData.password}
               onChange={handleChange}
               className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="Create a password (min 6 chars)"
+              placeholder="Create a secure password (min 6 chars)"
               required
             />
             <button
@@ -180,6 +241,17 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
           </div>
         </div>
 
+        {/* ✅ Privacy & Terms Notice */}
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-blue-700">
+              By creating an account, you agree to help improve Jharkhand through civic participation. 
+              Your data is protected by Government of Jharkhand privacy policies.
+            </p>
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={isLoading}
@@ -188,10 +260,13 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
           {isLoading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Creating account...
+              Creating your account...
             </>
           ) : (
-            'Create Account'
+            <>
+              <Star className="w-5 h-5" />
+              {isOptional ? 'Join the Community' : 'Create Account'}
+            </>
           )}
         </button>
       </form>
@@ -203,8 +278,29 @@ const SignupForm = ({ onSwitchToLogin, onClose }: SignupFormProps) => {
             onClick={onSwitchToLogin}
             className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
-            Sign in here
+            {isOptional ? 'Sign in instead' : 'Sign in here'}
           </button>
+        </p>
+      </div>
+
+      {/* ✅ Trust Indicators */}
+      <div className="mt-6 text-center">
+        <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <Shield className="w-3 h-3" />
+            <span>Secure</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />
+            <span>Verified</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Star className="w-3 h-3" />
+            <span>Trusted</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          🏛️ Government of Jharkhand • Digital India Initiative
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
@@ -12,9 +12,8 @@ import LoadingScreen from './components/LoadingScreen'
 import CommunityPage from './components/CommunityPage'
 import UserProfile from './components/UserProfile'
 import AuthModal from './components/auth/AuthModal'
-import AuthGuard from './components/auth/AuthGuard'
 import GeminiChatbot from './components/GeminiChatbot'
-import AdminPanel from './pages/AdminPanel'
+import AdminPanel from './Pages/AdminPanel'
 import { analyzeImageWithGemini, testGeminiConnection } from './services/gemini'
 import { DetectedIssue, IssueReport } from './types'
 import { 
@@ -29,13 +28,14 @@ import {
   User,
   MessageCircle,
   X,
-  Shield,
-  Settings
+  Settings,
+  ArrowLeft
 } from 'lucide-react'
 
 // Citizen App Content Component
 function CitizenAppContent() {
   const { user, isAuthenticated } = useAuth()
+  const navigate = useNavigate()
 
   // Add loading state
   const [isInitialLoading, setIsInitialLoading] = useState(true)
@@ -157,13 +157,18 @@ function CitizenAppContent() {
       
       console.log('✅ AI Analysis complete:', issues)
       setDetectedIssues(issues)
-      setSelectedCategories(issues.map((issue) => issue.category))
+      
+      // For authenticated users, set selected categories from AI
+      // For anonymous users, they'll use AI categories directly
+      if (isAuthenticated) {
+        setSelectedCategories(issues.map((issue) => issue.category))
+      }
       
       // Show success message if issues found
       if (issues.length > 0) {
         console.log(`🎯 Found ${issues.length} potential civic issue(s)`)
       } else {
-        console.log('🔍 No issues detected by AI - user can manually select categories')
+        console.log('🔍 No issues detected by AI')
       }
       
     } catch (error: any) {
@@ -176,14 +181,20 @@ function CitizenAppContent() {
   }
 
   const handleSubmitReport = async () => {
-    if (!capturedImage || selectedCategories.length === 0) {
-      setError('Please capture an image and select at least one issue category.')
+    if (!capturedImage) {
+      setError('Please capture an image first.')
       return
     }
 
-    if (!isAuthenticated) {
-      setError('Please sign in to submit a report.')
-      handleAuthClick('login')
+    // For anonymous users, require AI-detected categories
+    if (!isAuthenticated && detectedIssues.length === 0) {
+      setError('No issues detected by AI. Please sign in to manually select categories or try a different image.')
+      return
+    }
+
+    // For authenticated users, require at least one category (AI or manual)
+    if (isAuthenticated && selectedCategories.length === 0) {
+      setError('Please select at least one issue category.')
       return
     }
 
@@ -194,14 +205,15 @@ function CitizenAppContent() {
       console.log('📤 Submitting civic issue report...')
       
       const report: IssueReport = {
-        id: `JH-CIVIC-${Date.now()}`, // Updated with Jharkhand prefix
+        id: `JH-CIVIC-${Date.now()}`,
         image: capturedImage,
-        categories: selectedCategories,
+        categories: isAuthenticated ? selectedCategories : detectedIssues.map(issue => issue.category),
         comments: userComments.trim(),
         detectedIssues,
         timestamp: new Date().toISOString(),
         location: userLocation || undefined,
-        userId: user?.id // Add user ID to report
+        userId: isAuthenticated ? user?.id : undefined,
+        submissionType: isAuthenticated ? 'manual' : 'ai-only'
       }
 
       // Save to localStorage for demo (replace with actual API call)
@@ -214,7 +226,8 @@ function CitizenAppContent() {
         categories: report.categories,
         hasLocation: !!report.location,
         timestamp: report.timestamp,
-        userId: report.userId
+        userId: report.userId || 'anonymous',
+        submissionType: report.submissionType
       })
       
       setSubmitted(true)
@@ -289,6 +302,10 @@ function CitizenAppContent() {
 
   // Profile handlers
   const handleProfileClick = () => {
+    if (!isAuthenticated) {
+      handleAuthClick('login')
+      return
+    }
     console.log('👤 Opening user profile')
     setShowProfile(true)
   }
@@ -309,12 +326,18 @@ function CitizenAppContent() {
     setShowChatbot(false)
   }
 
+  // Admin panel handler
+  const handleAdminClick = () => {
+    console.log('🔧 Navigating to admin panel')
+    navigate('/admin')
+  }
+
   // Show loading screen while initializing
   if (isInitialLoading) {
     return <LoadingScreen />
   }
 
-  // Success Screen (updated with Jharkhand branding)
+  // Success Screen (updated with anonymous support)
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -356,6 +379,24 @@ function CitizenAppContent() {
                   🏛️ Govt. of Jharkhand • Serving with Digital Innovation
                 </p>
               </div>
+
+              {/* Anonymous user suggestion */}
+              {!isAuthenticated && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800 mb-2">
+                    💡 <strong>Want to track your reports?</strong>
+                  </p>
+                  <p className="text-xs text-yellow-700">
+                    Sign up to get updates on your submissions and view your report history.
+                  </p>
+                  <button
+                    onClick={() => handleAuthClick('signup')}
+                    className="mt-2 px-3 py-1 bg-yellow-200 text-yellow-800 rounded text-xs font-medium hover:bg-yellow-300 transition-colors"
+                  >
+                    Create Account
+                  </button>
+                </div>
+              )}
             </div>
             
             <div className="space-y-3">
@@ -375,12 +416,19 @@ function CitizenAppContent() {
                   👥 Community Reviews
                 </button>
                 
-                {isAuthenticated && (
+                {isAuthenticated ? (
                   <button
                     onClick={handleProfileClick}
                     className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
                   >
                     👤 My Profile
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleAuthClick('login')}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-all duration-200 font-medium"
+                  >
+                    👤 Sign In
                   </button>
                 )}
               </div>
@@ -452,14 +500,14 @@ function CitizenAppContent() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-8">
           
-          {/* Header - Updated with Jharkhand branding */}
+          {/* Header - Updated with optional sign-in */}
           <div className="text-center animate-fade-in">
             <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
               <span className="text-white font-bold text-xl">JH</span>
             </div>
             
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Jharkhand Civic Report
+              Jharkhand CivicReport
             </h1>
             <p className="text-blue-600 font-semibold mb-4">
               A Govt. of Jharkhand Initiative
@@ -469,7 +517,7 @@ function CitizenAppContent() {
             </p>
             
             {/* Status Indicators */}
-            <div className="mt-6 flex items-center justify-center gap-6 text-sm">
+            <div className="mt-6 flex items-center justify-center gap-6 text-sm flex-wrap">
               {/* Authentication Status */}
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${
@@ -503,17 +551,47 @@ function CitizenAppContent() {
               </div>
             </div>
 
-            {/* Admin Panel Access */}
-            <div className="mt-4">
-              <a
-                href="/admin"
+            {/* Action Buttons */}
+            <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
+              {/* Admin Panel Button */}
+              <button
+                onClick={handleAdminClick}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
                 title="Access Admin Panel"
               >
                 <Settings className="w-4 h-4" />
                 Admin Panel
-              </a>
+              </button>
+
+              {/* Optional Authentication Button */}
+              {!isAuthenticated ? (
+                <button
+                  onClick={() => handleAuthClick('login')}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                  title="Optional: Sign in to track your reports"
+                >
+                  <User className="w-4 h-4" />
+                  Sign In (Optional)
+                </button>
+              ) : (
+                <button
+                  onClick={handleProfileClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+                  title="View Profile"
+                >
+                  <User className="w-4 h-4" />
+                  {user?.name}
+                </button>
+              )}
             </div>
+
+            {/* Optional Benefits Message */}
+            {!isAuthenticated && (
+              <div className="mt-4 text-sm text-gray-600">
+                <p>💡 No account needed to report issues!</p>
+                <p className="text-xs">Sign in only if you want to track your reports and get updates.</p>
+              </div>
+            )}
           </div>
 
           {/* Error Display */}
@@ -553,50 +631,15 @@ function CitizenAppContent() {
             </div>
           )}
 
-          {/* Camera Section - Protected by Authentication */}
+          {/* Camera Section - NO AUTH REQUIRED */}
           {!capturedImage && (
             <div className="bg-white rounded-2xl shadow-xl p-8 animate-slide-up border border-gray-100">
-              <AuthGuard
-                onAuthRequired={() => handleAuthClick('login')}
-                fallback={
-                  <div className="text-center py-8">
-                    <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-700 mb-3">Sign In Required</h3>
-                    <p className="text-gray-600 mb-6">
-                      Please sign in to report civic issues and help improve your community.
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                      <button
-                        onClick={() => handleAuthClick('login')}
-                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-                      >
-                        Sign In
-                      </button>
-                      <button
-                        onClick={() => handleAuthClick('signup')}
-                        className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                      >
-                        Create Account
-                      </button>
-                    </div>
-                    
-                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                      <p className="text-xs text-blue-700 font-medium mb-2">Demo Credentials:</p>
-                      <div className="text-xs text-blue-600 space-y-1">
-                        <p>📧 Email: demo@jharkhand.gov.in</p>
-                        <p>🔐 Password: demo123</p>
-                      </div>
-                    </div>
-                  </div>
-                }
-              >
-                <CameraCapture onImageCapture={handleImageCapture} />
-              </AuthGuard>
+              <CameraCapture onImageCapture={handleImageCapture} />
             </div>
           )}
 
-          {/* Analysis Results Section - Only shown if authenticated and image captured */}
-          {capturedImage && isAuthenticated && (
+          {/* Analysis Results Section - Available for everyone */}
+          {capturedImage && (
             <div className="space-y-8">
               
               {/* Captured Image Preview */}
@@ -652,11 +695,103 @@ function CitizenAppContent() {
               {/* AI Analysis Results */}
               <AIAnalysis detectedIssues={detectedIssues} isAnalyzing={isAnalyzing} />
 
-              {/* Manual Category Selection */}
-              <IssueCategories
-                selectedCategories={selectedCategories}
-                onSelectionChange={setSelectedCategories}
-              />
+              {/* Category Selection - Conditional based on auth */}
+              {isAuthenticated ? (
+                <IssueCategories
+                  selectedCategories={selectedCategories}
+                  onSelectionChange={setSelectedCategories}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl shadow-xl p-6 animate-slide-up border border-gray-100">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <AlertCircle className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">AI-Detected Categories</h2>
+                      <p className="text-sm text-gray-500">Categories automatically detected by our AI</p>
+                    </div>
+                  </div>
+
+                  {detectedIssues.length > 0 ? (
+                    <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        {detectedIssues.map((issue, index) => (
+                          <div
+                            key={index}
+                            className="p-4 bg-purple-50 border border-purple-200 rounded-xl"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <span className="text-lg">🤖</span>
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-purple-900 capitalize">{issue.category}</h3>
+                                <p className="text-sm text-purple-700">
+                                  {Math.round(issue.confidence * 100)}% confidence
+                                </p>
+                                <p className="text-xs text-purple-600 mt-1">{issue.description}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h3 className="text-blue-900 font-medium text-sm mb-1">
+                              ✨ Want to manually select or add categories?
+                            </h3>
+                            <p className="text-blue-700 text-xs mb-3">
+                              Sign in to get full control over category selection and improve AI accuracy through your feedback.
+                            </p>
+                            <button
+                              onClick={() => handleAuthClick('signup')}
+                              className="px-3 py-2 bg-blue-200 text-blue-800 rounded-lg text-xs font-medium hover:bg-blue-300 transition-colors"
+                            >
+                              Create Account for Manual Selection
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                        No Categories Detected
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Our AI couldn't detect any civic issues in this image.
+                      </p>
+                      
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="text-yellow-900 font-medium text-sm mb-1">
+                              Want to manually select categories?
+                            </h4>
+                            <p className="text-yellow-700 text-xs mb-3">
+                              Anonymous users rely on AI detection only. Sign in to manually select issue categories when AI doesn't detect them.
+                            </p>
+                            <button
+                              onClick={() => handleAuthClick('signup')}
+                              className="px-3 py-2 bg-yellow-200 text-yellow-800 rounded-lg text-xs font-medium hover:bg-yellow-300 transition-colors"
+                            >
+                              Sign Up for Manual Categories
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Comments Section */}
               <div className="bg-white rounded-2xl shadow-xl p-6 animate-slide-up border border-gray-100">
@@ -696,7 +831,7 @@ function CitizenAppContent() {
                 <div className="space-y-4">
                   <button
                     onClick={handleSubmitReport}
-                    disabled={isSubmitting || selectedCategories.length === 0 || isAnalyzing}
+                    disabled={isSubmitting || (isAuthenticated && selectedCategories.length === 0) || (!isAuthenticated && detectedIssues.length === 0) || isAnalyzing}
                     className="flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 text-white text-lg font-bold rounded-2xl hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:via-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed transition-all duration-300 shadow-2xl hover:shadow-3xl transform hover:scale-105 mx-auto"
                   >
                     {isSubmitting ? (
@@ -714,15 +849,26 @@ function CitizenAppContent() {
                   
                   {/* Submit Button Status */}
                   <div className="text-sm text-gray-600 space-y-1">
-                    {selectedCategories.length === 0 && !isAnalyzing && (
+                    {!isAuthenticated && detectedIssues.length === 0 && !isAnalyzing && (
+                      <p className="text-red-500 animate-fade-in">
+                        ⚠️ No issues detected by AI. Sign in to manually select categories or try a different image.
+                      </p>
+                    )}
+                    
+                    {isAuthenticated && selectedCategories.length === 0 && !isAnalyzing && (
                       <p className="text-red-500 animate-fade-in">
                         ⚠️ Please select at least one issue category to continue
                       </p>
                     )}
                     
-                    {selectedCategories.length > 0 && (
+                    {((isAuthenticated && selectedCategories.length > 0) || (!isAuthenticated && detectedIssues.length > 0)) && (
                       <p className="text-green-600 animate-fade-in">
-                        ✅ Ready to submit with {selectedCategories.length} categor{selectedCategories.length === 1 ? 'y' : 'ies'}
+                        ✅ Ready to submit with {isAuthenticated ? selectedCategories.length : detectedIssues.length} categor{(isAuthenticated ? selectedCategories.length : detectedIssues.length) === 1 ? 'y' : 'ies'}
+                        {!isAuthenticated && (
+                          <span className="block text-blue-600 text-xs mt-1">
+                            📝 AI-detected categories • Sign in for manual selection
+                          </span>
+                        )}
                       </p>
                     )}
                     
@@ -736,7 +882,7 @@ function CitizenAppContent() {
               </div>
 
               {/* Report Summary Preview */}
-              {selectedCategories.length > 0 && (
+              {((isAuthenticated && selectedCategories.length > 0) || (!isAuthenticated && detectedIssues.length > 0)) && (
                 <div className="bg-gray-50 rounded-xl p-6 animate-slide-up border border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <User className="w-5 h-5 text-gray-600" />
@@ -746,12 +892,34 @@ function CitizenAppContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-600 font-medium">Submitted by:</p>
-                      <p className="text-gray-800">{user?.name} ({user?.email})</p>
+                      <p className="text-gray-800">
+                        {isAuthenticated ? `${user?.name} (${user?.email})` : "Anonymous User"}
+                      </p>
+                      {!isAuthenticated && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          💡 Sign in to track your reports and get updates
+                        </p>
+                      )}
                     </div>
                     
                     <div>
-                      <p className="text-gray-600 font-medium">Categories Selected:</p>
-                      <p className="text-gray-800 capitalize">{selectedCategories.join(', ')}</p>
+                      <p className="text-gray-600 font-medium">Categories:</p>
+                      <p className="text-gray-800 capitalize">
+                        {isAuthenticated ? selectedCategories.join(', ') : detectedIssues.map(issue => issue.category).join(', ')}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {isAuthenticated ? 'Manually selected' : 'AI-detected categories'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-gray-600 font-medium">Category Selection:</p>
+                      <p className="text-gray-800">
+                        {isAuthenticated 
+                          ? 'Full manual control enabled'
+                          : 'AI-only (Sign in for manual selection)'
+                        }
+                      </p>
                     </div>
                     
                     <div>
@@ -759,7 +927,7 @@ function CitizenAppContent() {
                       <p className="text-gray-800">
                         {detectedIssues.length > 0 
                           ? `${detectedIssues.length} issue${detectedIssues.length > 1 ? 's' : ''} detected (${Math.round(detectedIssues.reduce((acc, issue) => acc + issue.confidence, 0) / detectedIssues.length * 100)}% avg confidence)`
-                          : 'Manual selection'
+                          : 'No issues detected by AI'
                         }
                       </p>
                     </div>
@@ -772,9 +940,9 @@ function CitizenAppContent() {
                     </div>
                     
                     <div>
-                      <p className="text-gray-600 font-medium">Location:</p>
+                      <p className="text-gray-600 font-medium">Report Tracking:</p>
                       <p className="text-gray-800">
-                        {userLocation ? 'GPS coordinates captured' : 'Not available'}
+                        {isAuthenticated ? 'Enabled - Check your profile for updates' : 'Anonymous - No tracking'}
                       </p>
                     </div>
                   </div>
@@ -831,11 +999,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
-// Simple Admin Login Component
+// Simple Admin Login Component with proper navigation
 const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -851,6 +1020,11 @@ const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
     }
     
     setIsLoading(false)
+  }
+
+  const handleBackToCitizen = () => {
+    console.log('🏠 Navigating back to citizen portal')
+    navigate('/')
   }
 
   return (
@@ -926,12 +1100,13 @@ const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
         </div>
 
         <div className="mt-4 text-center">
-          <a
-            href="/"
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+          <button
+            onClick={handleBackToCitizen}
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
           >
-            ← Back to Citizen Portal
-          </a>
+            <ArrowLeft className="w-4 h-4" />
+            Back to Citizen Portal
+          </button>
         </div>
       </div>
     </div>
