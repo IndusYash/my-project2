@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
+import { useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import CameraCapture from './components/CameraCapture'
 import IssueCategories from './components/IssueCategories'
@@ -6,8 +9,12 @@ import VoiceInput from './components/VoiceInput'
 import AIAnalysis from './components/AIAnalysis'
 import MapView from './components/MapView'
 import LoadingScreen from './components/LoadingScreen'
-import CommunityPage from './components/CommunityPage'  // Community import
-import GeminiChatbot from './components/GeminiChatbot' // Chatbot import
+import CommunityPage from './components/CommunityPage'
+import UserProfile from './components/UserProfile'
+import AuthModal from './components/auth/AuthModal'
+import AuthGuard from './components/auth/AuthGuard'
+import GeminiChatbot from './components/GeminiChatbot'
+import AdminPanel from './pages/AdminPanel'
 import { analyzeImageWithGemini, testGeminiConnection } from './services/gemini'
 import { DetectedIssue, IssueReport } from './types'
 import { 
@@ -21,22 +28,25 @@ import {
   Clock, 
   User,
   MessageCircle,
-  X
+  X,
+  Shield,
+  Settings
 } from 'lucide-react'
 
-// Get Supabase configuration from environment variables
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Citizen App Content Component
+function CitizenAppContent() {
+  const { user, isAuthenticated } = useAuth()
 
-function App() {
   // Add loading state
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   
-  // Chatbot state
+  // Modal states
   const [showChatbot, setShowChatbot] = useState(false)
-  
-  // Community state
   const [showCommunity, setShowCommunity] = useState(false)
+  const [showMap, setShowMap] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login')
   
   // Main app state
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
@@ -49,14 +59,27 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid'>('checking')
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
-  
-  // Map state
-  const [showMap, setShowMap] = useState(false)
 
   // Initialize app with loading screen
   useEffect(() => {
     const initializeApp = async () => {
-      console.log('🚀 Initializing Jharkhand CivicReport App...')
+      console.log('🚀 Initializing Jharkhand Civic Report App...')
+      
+      // Create demo user if not exists
+      const existingUsers = localStorage.getItem('jharkhand-civic-users')
+      if (!existingUsers) {
+        const demoUser = {
+          id: 'demo-user-1',
+          name: 'Demo User',
+          email: 'demo@jharkhand.gov.in',
+          password: 'demo123',
+          phone: '+91 98765 43210',
+          joinedDate: new Date().toISOString(),
+          isVerified: true
+        }
+        localStorage.setItem('jharkhand-civic-users', JSON.stringify([demoUser]))
+        console.log('✅ Demo user created')
+      }
       
       // Minimum loading time for better UX
       const minLoadingTime = 3000 // 3 seconds
@@ -158,6 +181,12 @@ function App() {
       return
     }
 
+    if (!isAuthenticated) {
+      setError('Please sign in to submit a report.')
+      handleAuthClick('login')
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
     
@@ -171,7 +200,8 @@ function App() {
         comments: userComments.trim(),
         detectedIssues,
         timestamp: new Date().toISOString(),
-        location: userLocation || undefined
+        location: userLocation || undefined,
+        userId: user?.id // Add user ID to report
       }
 
       // Save to localStorage for demo (replace with actual API call)
@@ -183,7 +213,8 @@ function App() {
         id: report.id,
         categories: report.categories,
         hasLocation: !!report.location,
-        timestamp: report.timestamp
+        timestamp: report.timestamp,
+        userId: report.userId
       })
       
       setSubmitted(true)
@@ -222,6 +253,18 @@ function App() {
     }
   }
 
+  // Authentication handlers
+  const handleAuthClick = (tab: 'login' | 'signup' = 'login') => {
+    console.log('🔐 Opening authentication modal')
+    setAuthModalTab(tab)
+    setShowAuthModal(true)
+  }
+
+  const closeAuthModal = () => {
+    console.log('🔐 Closing authentication modal')
+    setShowAuthModal(false)
+  }
+
   // Map handlers
   const handleMapClick = () => {
     console.log('🗺️ Opening map view')
@@ -242,6 +285,17 @@ function App() {
   const closeCommunity = () => {
     console.log('🏛️ Closing community page')
     setShowCommunity(false)
+  }
+
+  // Profile handlers
+  const handleProfileClick = () => {
+    console.log('👤 Opening user profile')
+    setShowProfile(true)
+  }
+
+  const closeProfile = () => {
+    console.log('👤 Closing user profile')
+    setShowProfile(false)
   }
 
   // Chatbot handlers
@@ -266,7 +320,9 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
         <Navbar 
           onMapClick={handleMapClick} 
-          onCommunityClick={handleCommunityClick} 
+          onCommunityClick={handleCommunityClick}
+          onProfileClick={handleProfileClick}
+          onAuthClick={() => handleAuthClick()}
         />
         <main className="container mx-auto px-4 py-12">
           <div className="max-w-md mx-auto bg-white rounded-2xl shadow-2xl p-8 text-center animate-fade-in border border-gray-100">
@@ -311,12 +367,23 @@ function App() {
                 Report Another Issue
               </button>
               
-              <button
-                onClick={handleCommunityClick}
-                className="flex items-center gap-3 px-8 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium mx-auto"
-              >
-                👥 View Community Reviews
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={handleCommunityClick}
+                  className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                >
+                  👥 Community Reviews
+                </button>
+                
+                {isAuthenticated && (
+                  <button
+                    onClick={handleProfileClick}
+                    className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                  >
+                    👤 My Profile
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </main>
@@ -328,14 +395,22 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <Navbar 
         onMapClick={handleMapClick} 
-        onCommunityClick={handleCommunityClick} 
+        onCommunityClick={handleCommunityClick}
+        onProfileClick={handleProfileClick}
+        onAuthClick={() => handleAuthClick()}
       />
       
-      {/* Map Modal */}
+      {/* Modal Components */}
       {showMap && <MapView onClose={closeMap} />}
-      
-      {/* Community Modal */}
       {showCommunity && <CommunityPage onClose={closeCommunity} />}
+      {showProfile && <UserProfile onClose={closeProfile} />}
+      {showAuthModal && (
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={closeAuthModal}
+          defaultTab={authModalTab}
+        />
+      )}
       
       {/* Chatbot Modal */}
       {showChatbot && (
@@ -359,11 +434,7 @@ function App() {
               </button>
             </div>
             <div className="p-6">
-              <GeminiChatbot
-                supabaseUrl={SUPABASE_URL}
-                supabaseKey={SUPABASE_KEY}
-                className="h-[500px]"
-              />
+              <GeminiChatbot className="h-[500px]" />
             </div>
           </div>
         </div>
@@ -388,7 +459,7 @@ function App() {
             </div>
             
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Jharkhand CivicReport
+              Jharkhand Civic Report
             </h1>
             <p className="text-blue-600 font-semibold mb-4">
               A Govt. of Jharkhand Initiative
@@ -399,6 +470,16 @@ function App() {
             
             {/* Status Indicators */}
             <div className="mt-6 flex items-center justify-center gap-6 text-sm">
+              {/* Authentication Status */}
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  isAuthenticated ? 'bg-green-400' : 'bg-gray-400'
+                }`}></div>
+                <span className="text-gray-500">
+                  {isAuthenticated ? `Signed in as ${user?.name}` : 'Not signed in'}
+                </span>
+              </div>
+
               {/* API Status */}
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${
@@ -420,6 +501,18 @@ function App() {
                   {userLocation ? 'Location available' : 'Location unavailable'}
                 </span>
               </div>
+            </div>
+
+            {/* Admin Panel Access */}
+            <div className="mt-4">
+              <a
+                href="/admin"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                title="Access Admin Panel"
+              >
+                <Settings className="w-4 h-4" />
+                Admin Panel
+              </a>
             </div>
           </div>
 
@@ -460,15 +553,50 @@ function App() {
             </div>
           )}
 
-          {/* Camera Section */}
+          {/* Camera Section - Protected by Authentication */}
           {!capturedImage && (
             <div className="bg-white rounded-2xl shadow-xl p-8 animate-slide-up border border-gray-100">
-              <CameraCapture onImageCapture={handleImageCapture} />
+              <AuthGuard
+                onAuthRequired={() => handleAuthClick('login')}
+                fallback={
+                  <div className="text-center py-8">
+                    <Shield className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-3">Sign In Required</h3>
+                    <p className="text-gray-600 mb-6">
+                      Please sign in to report civic issues and help improve your community.
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      <button
+                        onClick={() => handleAuthClick('login')}
+                        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        onClick={() => handleAuthClick('signup')}
+                        className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        Create Account
+                      </button>
+                    </div>
+                    
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                      <p className="text-xs text-blue-700 font-medium mb-2">Demo Credentials:</p>
+                      <div className="text-xs text-blue-600 space-y-1">
+                        <p>📧 Email: demo@jharkhand.gov.in</p>
+                        <p>🔐 Password: demo123</p>
+                      </div>
+                    </div>
+                  </div>
+                }
+              >
+                <CameraCapture onImageCapture={handleImageCapture} />
+              </AuthGuard>
             </div>
           )}
 
-          {/* Analysis Results Section */}
-          {capturedImage && (
+          {/* Analysis Results Section - Only shown if authenticated and image captured */}
+          {capturedImage && isAuthenticated && (
             <div className="space-y-8">
               
               {/* Captured Image Preview */}
@@ -617,6 +745,11 @@ function App() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
+                      <p className="text-gray-600 font-medium">Submitted by:</p>
+                      <p className="text-gray-800">{user?.name} ({user?.email})</p>
+                    </div>
+                    
+                    <div>
                       <p className="text-gray-600 font-medium">Categories Selected:</p>
                       <p className="text-gray-800 capitalize">{selectedCategories.join(', ')}</p>
                     </div>
@@ -658,6 +791,177 @@ function App() {
         </div>
       </main>
     </div>
+  )
+}
+
+// Citizen App Component (wrapped with AuthProvider)
+const CitizenApp = () => {
+  return (
+    <AuthProvider>
+      <CitizenAppContent />
+    </AuthProvider>
+  )
+}
+
+// Protected Route Component for Admin Panel
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    // Simple authentication check - replace with your actual auth logic
+    const adminAuth = localStorage.getItem('jharkhand-admin-auth')
+    setIsAuthenticated(!!adminAuth)
+  }, [])
+
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Verifying credentials...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLogin={() => setIsAuthenticated(true)} />
+  }
+
+  return <>{children}</>
+}
+
+// Simple Admin Login Component
+const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
+  const [credentials, setCredentials] = useState({ username: '', password: '' })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
+
+    // Simple demo authentication - replace with actual authentication
+    if (credentials.username === 'admin' && credentials.password === 'jharkhand2025') {
+      localStorage.setItem('jharkhand-admin-auth', 'true')
+      onLogin()
+    } else {
+      setError('Invalid credentials. Use admin/jharkhand2025 for demo.')
+    }
+    
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Settings className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Admin Portal</h2>
+          <p className="text-gray-600">Jharkhand Government - Civic Issues Management</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              value={credentials.username}
+              onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              placeholder="Enter your username"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={credentials.password}
+              onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Signing In...
+              </div>
+            ) : (
+              'Sign In to Admin Panel'
+            )}
+          </button>
+        </form>
+
+        <div className="mt-8 p-4 bg-blue-50 rounded-xl">
+          <p className="text-sm text-blue-700 text-center">
+            🔐 Demo Credentials:<br />
+            Username: <strong>admin</strong><br />
+            Password: <strong>jharkhand2025</strong>
+          </p>
+        </div>
+
+        <div className="mt-4 text-center">
+          <a
+            href="/"
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+          >
+            ← Back to Citizen Portal
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Main App Component with Routing
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Citizen App Routes */}
+          <Route path="/" element={<CitizenApp />} />
+          
+          {/* Admin Panel Routes - Protected */}
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute>
+                <AdminPanel />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
   )
 }
 
