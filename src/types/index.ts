@@ -28,6 +28,7 @@ export interface IssueReport {
     address?: string
   }
   userId?: string // Added for authentication integration
+  submissionType?: 'manual' | 'ai-only' // ✅ Add this line
 }
 
 export interface GeminiResponse {
